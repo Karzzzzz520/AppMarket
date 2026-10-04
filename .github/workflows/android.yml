@@ -9,7 +9,6 @@ on:
     paths-ignore:
       - "README.md"
       - "doc/*"
-      - ".github/workflows/android.yml"
 
 jobs:
   build:
@@ -30,18 +29,21 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Decode Signing Key
-        run: echo ${{ secrets.SIGNING_KEY }} | base64 -d > keystore.jks
+      - name: Show keystore
+        run: ls -la keystore.jks && keytool -list -keystore keystore.jks -storepass 123456 | head -5
 
       - name: Build Release APK
         run: |
-          ./gradlew :app:android:assembleRelease
-          echo "APK_FILE=$(find app/android/build/outputs/apk/release -name '*.apk' | head -n 1)" >> $GITHUB_ENV
+          chmod +x gradlew
+          ./gradlew :app:android:assembleRelease --stacktrace
+          APK=$(find app/android/build/outputs/apk/release -name '*.apk' | head -n 1)
+          echo "APK_FILE=$APK" >> $GITHUB_ENV
+          ls -la "$APK"
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
-          KEYSTORE_PASS: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASS: "123456"
+          KEY_ALIAS: "appmarket"
+          KEY_PASSWORD: "123456"
 
       - name: Upload APK Artifact
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -49,12 +51,3 @@ jobs:
         with:
           path: ${{ env.APK_FILE }}
           archive: false
-
-      - name: Display APK Hashes
-        run: |
-          echo "### APK Hashes" >> $GITHUB_STEP_SUMMARY
-          echo "| Hash Type | Hash Value |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| SHA256 | \`$(sha256sum "$APK_FILE" | awk '{ print $1 }')\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| SHA1 | \`$(sha1sum "$APK_FILE" | awk '{ print $1 }')\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| MD5 | \`$(md5sum "$APK_FILE" | awk '{ print $1 }')\` |" >> $GITHUB_STEP_SUMMARY
